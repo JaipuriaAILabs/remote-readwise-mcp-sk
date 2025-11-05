@@ -676,7 +676,7 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
 
-    logger.info(f"Starting Readwise MCP Enhanced server on {host}:{port}")
+    logger.info(f"Starting Remote Readwise MCP server on {host}:{port}")
     logger.info(f"Authentication: {'Enabled' if MCP_API_KEY else 'Disabled (WARNING: Not secure for production)'}")
 
     # Create and run the app

@@ -6,7 +6,7 @@
 SERVER_URL=${1:-"http://localhost:8000"}
 API_KEY=${2:-""}
 
-echo "🧪 Testing Readwise MCP Enhanced Server"
+echo "🧪 Testing Remote Readwise MCP Server"
 echo "Server: $SERVER_URL"
 echo "Auth: ${API_KEY:+Enabled}"
 echo ""

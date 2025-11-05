@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: readwise-mcp-enhanced
+    name: remote-readwise-mcp
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: ./server
