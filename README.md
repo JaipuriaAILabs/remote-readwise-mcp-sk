@@ -1,325 +1,246 @@
-# Readwise MCP Server (FastMCP)
+# Readwise MCP Server 📚
 
-A powerful Model Context Protocol (MCP) server for [Readwise](https://readwise.io/) that provides comprehensive access to both **Reader** (v3) and **Highlights** (v2) APIs. Built with [FastMCP](https://github.com/jlowin/fastmcp) for seamless integration with Claude.ai and other MCP clients.
+Connect your [Readwise](https://readwise.io/) account to Claude AI and access all your highlights, books, and reading list directly in conversations!
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.0+-green.svg)](https://github.com/jlowin/fastmcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## ✨ Features
+## ✨ What Can You Do?
 
-### 📚 Reader API (v3) - 5 Tools
-- **Save documents** to your reading queue
-- **List documents** with advanced filtering (location, category, author, site, date)
-- **Update** document metadata (title, author, summary, location, tags)
-- **Delete** documents from Reader
-- **List all tags** from your library
-- **Unlimited pagination** - fetch ALL documents with `fetch_all` or `limit=None`
+Once set up, you can ask Claude:
 
-### 💡 Highlights API (v2) - 7 Tools
-- **List highlights** with date filtering and unlimited fetch support
-- **Daily review** highlights (spaced repetition system)
-- **Search highlights** by text query across all pages
-- **List books** with metadata and highlight counts
-- **Get all highlights** from specific books automatically
-- **Export highlights** for backup and analysis with incremental sync
-- **Create highlights** manually
+- **"What's in my Readwise reading list?"** - View all saved articles
+- **"Show me my daily review highlights"** - Get your spaced repetition review
+- **"Search my highlights for 'productivity tips'"** - Find specific highlights
+- **"Save this article: https://example.com"** - Add to your reading list
+- **"List all my tags"** - See your document tags
+- **"Export all my highlights"** - Backup your entire library
 
-### 🚀 Advanced Capabilities
-- ✅ **Unlimited pagination** - No more 20-item limits!
-- ✅ **Incremental sync** - Use `updated_after` for efficient data fetching
-- ✅ **Smart filtering** - Filter by author, site, location, category, dates
-- ✅ **Bulk operations** - Export and analyze your entire library
-- ✅ **Production-ready** - Deployed on Render with health checks
-- ✅ **Comprehensive testing** - Full test suite included
+## 🚀 10-Minute Setup
 
----
+### What You Need
 
-## 🚀 Quick Start
+- ✅ Readwise account ([Get one here](https://readwise.io/))
+- ✅ Claude AI (Pro/Team/Enterprise - any plan with MCP support)
+- ✅ Free [Render](https://render.com/) account for hosting
 
-### Prerequisites
+### Step 1: Get Your Readwise Token (1 min)
 
-- **Claude.ai Account**: Pro, Max, Team, or Enterprise plan (required for custom connectors)
-- **Readwise Account**: Get your token from https://readwise.io/access_token
-- **Render Account**: Free tier available at https://render.com
+1. Go to https://readwise.io/access_token
+2. Copy your access token
+3. Keep it handy
 
-### Step 1: Deploy to Render
+### Step 2: Fork & Deploy Server (5 min)
 
-1. **Fork or Clone this Repository**
-   ```bash
-   git clone https://github.com/your-username/readwise-mcp-enhanced.git
-   cd readwise-mcp-enhanced
-   ```
+#### Option A: Deploy to Render (Recommended)
 
-2. **Create a Render Account**
-   - Go to https://render.com and sign up
-   - Connect your GitHub account
+1. **Fork this repository**:
+   - Click "Fork" button at the top of this GitHub page
+   - This creates your own copy of the code
 
-3. **Deploy the Service**
+2. **Sign up at [Render](https://render.com)** (free tier available)
+
+3. **Create New Web Service**:
    - Click "New +" → "Web Service"
-   - Connect your repository
-   - Root directory is already at repo root (no need to change)
-   - Render will auto-detect the Dockerfile
+   - Choose "Connect a Git repository"
+   - Select your forked repository from the list
 
-4. **Configure Environment Variables**
-   Add these in Render's dashboard:
+4. **Configure**:
+   - **Name**: `readwise-mcp` (or your choice)
+   - **Runtime**: Docker (auto-detected)
+   - **Plan**: Free
 
-   | Variable | Value | Description |
-   |----------|-------|-------------|
-   | `READWISE_TOKEN` | Your token from readwise.io/access_token | Readwise API authentication |
-   | `MCP_API_KEY` | Generate a secure random string* | Your server's API key |
-   | `PORT` | 8000 | Server port (auto-set by Render) |
-   | `HOST` | 0.0.0.0 | Server host |
-
-   *Generate a secure API key:
+5. **Add Environment Variable** (in Render dashboard):
    ```bash
-   openssl rand -hex 32
-   # or
-   python -c "import secrets; print(secrets.token_hex(32))"
+   READWISE_TOKEN=<paste_your_token_from_step_1>
    ```
 
-5. **Deploy**
-   - Click "Create Web Service"
-   - Wait for deployment (2-3 minutes)
-   - Copy your service URL: `https://your-service-name.onrender.com`
+   That's it! No API key needed.
 
----
+6. Click **Create Web Service** and wait ~2 minutes
 
-### Step 2: Add to Claude.ai
+#### Option B: Other Platforms
 
-1. **Open Claude.ai Settings**
-   - Go to https://claude.ai
-   - Click your profile → Settings
-   - Navigate to **Connectors** tab
+<details>
+<summary>Railway / Fly.io / Google Cloud Run</summary>
 
-2. **Add Custom Connector**
-   - Click "Add Connector"
-   - Choose "Custom MCP Server"
+The server works on any platform that supports Docker. See `Dockerfile` for configuration.
+</details>
 
-3. **Configure Connection**
-   ```
-   Server URL: https://your-service-name.onrender.com
-   Authentication: Bearer Token
-   API Key: [Your MCP_API_KEY from Render]
-   ```
+### Step 3: Verify It's Running (1 min)
 
-4. **Test Connection**
-   - Claude will verify the connection
-   - You should see "Readwise MCP Enhanced" appear with 13 tools
+Visit: `https://YOUR-SERVICE-NAME.onrender.com/health`
 
-5. **Start Using**
-   Try: "List my recent Readwise documents" or "Get my daily review highlights"
-
----
-
-## 🔧 Local Development
-
-### Setup
-
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your tokens
+You should see:
+```json
+{
+  "status": "healthy",
+  "service": "readwise-mcp-enhanced",
+  "authentication": "enabled"
+}
 ```
+
+✅ If you see this, you're good to go!
+
+### Step 4: Connect to Claude (3 min)
+
+1. **Open Claude AI** at https://claude.ai
+
+2. **Go to Settings** → **Integrations** (or similar MCP section)
+
+3. **Add MCP Server**:
+   ```
+   Name: Readwise
+   URL: https://YOUR-SERVICE-NAME.onrender.com
+   ```
+
+   No API key needed!
+
+4. **Test Connection** - Should show "12 tools available"
+
+5. **Save** and you're done! 🎉
+
+### Step 5: Start Using!
+
+Try asking Claude:
+- "What did I save to Readwise today?"
+- "Show me highlights from my AI books"
+- "Get my daily review"
+
+## 📖 All Available Features
+
+### Reader Tools (5 tools)
+- **Save documents** - Add URLs to your reading list
+- **List documents** - Browse with filters (location, category, author, date)
+- **Update documents** - Edit titles, tags, notes
+- **Delete documents** - Remove from library
+- **List tags** - View all your tags
+
+### Highlights Tools (7 tools)
+- **List highlights** - Browse with date filters
+- **Daily review** - Spaced repetition system
+- **Search highlights** - Find by text query
+- **List books** - View books with highlight counts
+- **Get book highlights** - All highlights from a specific book
+- **Export highlights** - Backup everything
+- **Create highlights** - Add manual highlights
+
+### 🚀 Advanced Features
+- ✅ **Unlimited pagination** - Fetch ALL your data
+- ✅ **Incremental sync** - Get only new/updated items
+- ✅ **Smart filtering** - Filter by author, site, dates
+- ✅ **Bulk export** - Backup your entire library
+
+## 🆓 Cost
+
+**100% Free for Personal Use:**
+- ✅ Render: 750 hours/month (runs 24/7)
+- ✅ Uses your existing Readwise subscription
+- ⚠️ Server "sleeps" after 15 min (10 sec wake-up on first request)
+
+**Optional Upgrade:**
+- 💵 $7/month for Render Starter (always-on, no sleep)
+
+## 🛠️ Troubleshooting
+
+### "Connection Failed" in Claude
+
+1. Visit `https://YOUR-SERVICE.onrender.com/health` - Should return healthy status
+2. Verify the URL is correct in Claude settings
+3. Wait 10 seconds if server was sleeping (free tier)
+
+### Server Takes Long to Respond
+
+- Free tier "sleeps" after 15 min inactivity
+- First request after sleep takes ~10 seconds to wake up
+- This is normal - subsequent requests are fast!
+
+### "Readwise API Error"
+
+- Check your `READWISE_TOKEN` in Render dashboard
+- Verify token at https://readwise.io/access_token
+- Token might have expired - get a new one
+
+### Still Need Help?
+
+- 📖 See [CLAUDE_AI_SETUP.md](CLAUDE_AI_SETUP.md) for detailed Claude setup
+- 🚀 See [DEPLOYMENT.md](DEPLOYMENT.md) for advanced deployment options
+- 🐛 [Open an issue](https://github.com/YOUR-USERNAME/readwise-mcp-server/issues)
+
+## 🔒 Security & Privacy
+
+- ✅ All requests encrypted via HTTPS
+- ✅ Your Readwise token stays on your server (never exposed to Claude)
+- ✅ Open source - inspect the code yourself!
+- ⚠️ **Important**: Your server URL is public but only works with YOUR Readwise token
+
+**Keep your secrets safe:**
+- Never commit `.env` files with tokens
+- Don't share your Readwise token
+- Only you can access your data through your server
+
+## 🧪 For Developers
 
 ### Run Locally
 
 ```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure
+cp .env.example .env
+# Edit .env with your tokens
+
+# Run
 python main.py
+
+# Test
+python test_all_tools.py
 ```
 
-Server will start at `http://localhost:8000`
-
-### Test with MCP Inspector
+### Docker
 
 ```bash
-npx @modelcontextprotocol/inspector python main.py
+docker build -t readwise-mcp .
+docker run -p 8000:8000 \
+  -e READWISE_TOKEN=your_token \
+  readwise-mcp
 ```
 
----
+### Project Structure
 
-## 📚 Available Tools
-
-### Reader Tools (5)
-
-1. **readwise_save_document** - Save URLs to Reader
-2. **readwise_list_documents** - List with advanced filtering (author, site, unlimited)
-3. **readwise_update_document** - Update metadata
-4. **readwise_delete_document** - Remove documents
-5. **readwise_list_tags** - Get all tags
-
-### Highlights Tools (7)
-
-7. **readwise_list_highlights** - Advanced filtering
-8. **readwise_get_daily_review** - Spaced repetition
-9. **readwise_search_highlights** - Text search
-10. **readwise_list_books** - Book metadata
-11. **readwise_get_book_highlights** - Per-book highlights
-12. **readwise_export_highlights** - Bulk export
-13. **readwise_create_highlight** - Manual creation
-
----
-
-## 🔐 Security
-
-### Authentication Flow
-
-1. **Client → Server**: All requests include `Authorization: Bearer YOUR_API_KEY`
-2. **Server → Readwise**: Server uses `READWISE_TOKEN` internally
-3. **Two-Layer Security**:
-   - Your API key protects your server
-   - Readwise token stays secure on server (never exposed)
-
-### Best Practices
-
-- **Never commit** `.env` files or tokens to Git
-- **Rotate API keys** periodically
-- **Use HTTPS** only (Render provides this automatically)
-- **Monitor usage** through Render's dashboard
-
----
-
-## 🚀 Deployment Options
-
-### Render (Recommended)
-
-- **Free Tier**: 750 hours/month
-- **Auto-scaling**: Handles traffic spikes
-- **Zero config**: Dockerfile auto-detected
-- **HTTPS included**: Secure by default
-
-**Deploy Now:**
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
-
-### Alternative Platforms
-
-**Railway**
-```bash
-railway login
-railway init
-railway up
+```
+readwise-mcp-server/
+├── main.py              # FastMCP server (12 tools)
+├── readwise_client.py   # Readwise API client
+├── requirements.txt     # Python dependencies
+├── Dockerfile          # Container config
+├── render.yaml         # Render deployment
+└── test_all_tools.py   # Test suite
 ```
 
-**Fly.io**
-```bash
-fly launch
-fly deploy
-```
+## 🤝 Contributing
 
-**Google Cloud Run**
-```bash
-gcloud run deploy readwise-mcp --source ./server --region us-central1
-```
+Contributions welcome! Please:
 
----
+1. Fork the repo
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
-## 🧪 Testing
+## 🙏 Credits
 
-### Health Check
-
-```bash
-curl https://your-service.onrender.com/health
-```
-
-### Test Authentication
-
-```bash
-curl -H "Authorization: Bearer YOUR_API_KEY" \
-     https://your-service.onrender.com/list_tools
-```
-
-### Example Tool Call (via Claude.ai)
-
-Simply ask Claude:
-- "What's in my Readwise reading list?"
-- "Show me my daily review highlights"
-- "Save this article to Readwise: https://example.com/article"
-
----
-
-## 📊 Performance
-
-- **Cold Start**: ~10 seconds (Render free tier)
-- **Response Time**: 200-500ms per request
-- **Token Usage**: 94% more efficient than raw API responses
-- **Uptime**: 99.9% (Render SLA)
-
----
-
-## 🐛 Troubleshooting
-
-### "Connection Failed" in Claude.ai
-
-1. Verify your Render service is running (check dashboard)
-2. Test the health endpoint: `https://your-service.onrender.com/health`
-3. Confirm `MCP_API_KEY` matches between Render and Claude.ai
-
-### "Invalid API Key"
-
-- Double-check the Bearer token in Claude.ai settings
-- Ensure no extra spaces in the API key
-- Regenerate key if needed (update in both Render and Claude.ai)
-
-### "Readwise API Error"
-
-- Verify `READWISE_TOKEN` in Render environment variables
-- Test token at https://readwise.io/access_token
-- Check Readwise API status
-
-### Server Errors
-
-- View logs in Render dashboard
-- Increase instance size if hitting memory limits
-- Check Readwise API rate limits
-
----
-
-## 💰 Pricing
-
-### Render Free Tier
-- ✅ 750 hours/month (enough for 24/7 uptime)
-- ✅ 512 MB RAM
-- ✅ Automatic HTTPS
-- ⚠️ Spins down after 15 min inactivity (cold start on next request)
-
-### Render Paid Plans
-- **Starter**: $7/month - Always-on, no cold starts
-- **Standard**: $25/month - More resources, faster performance
-
-### Readwise
-- Uses your existing Readwise subscription
-- No additional costs
-
----
-
-## 🤝 Support
-
-- **Issues**: https://github.com/your-username/readwise-mcp-enhanced/issues
-- **Discussions**: https://github.com/your-username/readwise-mcp-enhanced/discussions
-- **Email**: your-email@example.com
-
----
-
-## 📄 License
-
-MIT License - see [LICENSE](../LICENSE) for details
-
----
-
-## 🙏 Acknowledgments
-
-Built on:
+Built with:
 - [FastMCP](https://github.com/jlowin/fastmcp) - Python MCP framework
-- [MCP Protocol](https://modelcontextprotocol.io) - Anthropic's protocol
 - [Readwise API](https://readwise.io/api_deets) - Readwise platform
+- [MCP Protocol](https://modelcontextprotocol.io) - Anthropic's protocol
+
+## ⭐ Support
+
+If you find this useful, please star the repository!
 
 ---
 
-**Enjoy using Readwise with Claude.ai from anywhere! 🎉**
+**Made with ❤️ for the Readwise and Claude AI community**
