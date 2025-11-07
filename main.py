@@ -83,29 +83,31 @@ async def readwise_list_documents(
     fetch_all: bool = False,
     updated_after: Optional[str] = None,
     with_full_content: bool = False,
-    content_max_length: Optional[int] = None
+    content_max_length: Optional[int] = None,
+    max_limit: Optional[int] = 1000
 ) -> str:
     """
-    List documents from Readwise Reader with advanced filtering and unlimited fetch support.
+    List documents from Readwise Reader with advanced filtering and rate-limited fetch support.
 
     Args:
         location: Filter by location (new, later, archive, feed)
         category: Filter by category (article, email, rss, etc.)
         author: Filter by author name (case-insensitive partial match)
         site_name: Filter by site name (case-insensitive partial match)
-        limit: Maximum documents to return. Ignored if fetch_all=True (default: 20)
-        fetch_all: If True, fetches ALL documents across all pages (ignores limit)
+        limit: Maximum documents to return (default: 20). Used when fetch_all=False
+        fetch_all: If True, fetches documents up to max_limit (default: 1000)
         updated_after: ISO 8601 timestamp - only documents updated after this time
                       Example: "2025-11-01T00:00:00Z"
                       Useful for incremental syncs (fetch only new/updated docs)
         with_full_content: Include full document content (warning: may be large)
         content_max_length: Limit content length per document
+        max_limit: Maximum documents to fetch when fetch_all=True (default: 1000)
 
     Returns:
         JSON string with filtered document list
 
     Examples:
-        - Get all documents by author: fetch_all=True, author="sukhad anand"
+        - Get documents by author: fetch_all=True, author="sukhad anand", max_limit=500
         - Get all LinkedIn posts: fetch_all=True, site_name="linkedin.com"
         - Get recent articles: updated_after="2025-11-01T00:00:00Z", category="article"
         - Incremental sync: fetch_all=True, updated_after="2025-11-28T00:00:00Z"
@@ -117,7 +119,8 @@ async def readwise_list_documents(
             location=location,
             category=category,
             limit=effective_limit,
-            updated_after=updated_after
+            updated_after=updated_after,
+            max_limit=max_limit if fetch_all else None
         )
 
         # Apply client-side filtering
@@ -252,25 +255,27 @@ async def readwise_list_highlights(
     page: int = 1,
     fetch_all: bool = False,
     highlighted_at__gt: Optional[str] = None,
-    highlighted_at__lt: Optional[str] = None
+    highlighted_at__lt: Optional[str] = None,
+    max_limit: Optional[int] = 5000
 ) -> str:
     """
-    List highlights from Readwise with advanced filtering and unlimited fetch support.
+    List highlights from Readwise with advanced filtering and rate-limited fetch support.
 
     Args:
         book_id: Filter by specific book ID
         page_size: Number of highlights per page (max 1000, ignored if fetch_all=True)
         page: Page number (ignored if fetch_all=True)
-        fetch_all: If True, fetches ALL highlights across all pages
+        fetch_all: If True, fetches highlights up to max_limit (default: 5000)
         highlighted_at__gt: Filter highlights after this date (ISO 8601)
         highlighted_at__lt: Filter highlights before this date (ISO 8601)
+        max_limit: Maximum highlights to fetch when fetch_all=True (default: 5000)
 
     Returns:
         JSON string with highlights
 
     Examples:
-        - Get all highlights: fetch_all=True
-        - Get all highlights from specific book: fetch_all=True, book_id=12345
+        - Get highlights: fetch_all=True, max_limit=1000
+        - Get highlights from specific book: fetch_all=True, book_id=12345
         - Get highlights from last week: highlighted_at__gt="2025-11-01T00:00:00Z"
     """
     try:
@@ -285,6 +290,7 @@ async def readwise_list_highlights(
             page=page,
             book_id=book_id,
             fetch_all=fetch_all,
+            max_limit=max_limit if fetch_all else None,
             **filters
         )
 
@@ -344,22 +350,24 @@ async def readwise_search_highlights(
     query: str,
     page_size: int = 100,
     page: int = 1,
-    fetch_all: bool = False
+    fetch_all: bool = False,
+    max_limit: Optional[int] = 5000
 ) -> str:
     """
-    Search highlights by text query with unlimited fetch support.
+    Search highlights by text query with rate-limited fetch support.
 
     Args:
         query: Search term (searches highlight text and notes)
         page_size: Number of results per page (ignored if fetch_all=True)
         page: Page number (ignored if fetch_all=True)
-        fetch_all: If True, fetches ALL matching highlights across all pages
+        fetch_all: If True, fetches matching highlights up to max_limit (default: 5000)
+        max_limit: Maximum highlights to fetch when fetch_all=True (default: 5000)
 
     Returns:
         JSON string with matching highlights
 
     Examples:
-        - Search all highlights: query="machine learning", fetch_all=True
+        - Search highlights: query="machine learning", fetch_all=True, max_limit=1000
         - Search first page: query="python", page_size=50
     """
     try:
@@ -367,7 +375,8 @@ async def readwise_search_highlights(
             query=query,
             page_size=page_size,
             page=page,
-            fetch_all=fetch_all
+            fetch_all=fetch_all,
+            max_limit=max_limit if fetch_all else None
         )
 
         # Optimize response
@@ -397,23 +406,25 @@ async def readwise_list_books(
     page_size: int = 100,
     page: int = 1,
     fetch_all: bool = False,
-    last_highlight_at__gt: Optional[str] = None
+    last_highlight_at__gt: Optional[str] = None,
+    max_limit: Optional[int] = 1000
 ) -> str:
     """
-    List books with highlight metadata and unlimited fetch support.
+    List books with highlight metadata and rate-limited fetch support.
 
     Args:
         category: Filter by category (books, articles, tweets, podcasts)
         page_size: Number of books per page (ignored if fetch_all=True)
         page: Page number (ignored if fetch_all=True)
-        fetch_all: If True, fetches ALL books across all pages
+        fetch_all: If True, fetches books up to max_limit (default: 1000)
         last_highlight_at__gt: Filter books with highlights after this date
+        max_limit: Maximum books to fetch when fetch_all=True (default: 1000)
 
     Returns:
         JSON string with books
 
     Examples:
-        - Get all books: fetch_all=True
+        - Get books: fetch_all=True, max_limit=500
         - Get all articles: fetch_all=True, category="articles"
         - Get books with recent highlights: last_highlight_at__gt="2025-11-01T00:00:00Z"
     """
@@ -427,6 +438,7 @@ async def readwise_list_books(
             page=page,
             category=category,
             fetch_all=fetch_all,
+            max_limit=max_limit if fetch_all else None,
             **filters
         )
 
@@ -452,22 +464,23 @@ async def readwise_list_books(
 
 
 @mcp.tool()
-async def readwise_get_book_highlights(book_id: int) -> str:
+async def readwise_get_book_highlights(book_id: int, max_limit: Optional[int] = 5000) -> str:
     """
-    Get ALL highlights from a specific book (automatically fetches all pages).
+    Get highlights from a specific book (automatically fetches multiple pages up to limit).
 
     Args:
         book_id: The ID of the book to get highlights from
+        max_limit: Maximum highlights to fetch (default: 5000)
 
     Returns:
-        JSON string with all book highlights
+        JSON string with book highlights
 
     Example:
-        - Get all highlights from book: book_id=123456
+        - Get highlights from book: book_id=123456, max_limit=1000
     """
     try:
-        # This now automatically fetches all pages
-        result = await client.get_book_highlights(book_id)
+        # This automatically fetches pages up to max_limit
+        result = await client.get_book_highlights(book_id, max_limit=max_limit)
 
         highlights = result.get("results", [])
         optimized = [
@@ -492,45 +505,41 @@ async def readwise_get_book_highlights(book_id: int) -> str:
 async def readwise_export_highlights(
     updated_after: Optional[str] = None,
     include_deleted: bool = False,
-    max_results: Optional[int] = None
+    max_results: Optional[int] = 5000
 ) -> str:
     """
-    Bulk export ALL highlights for analysis and backup.
+    Bulk export highlights for analysis and backup with rate limiting.
 
-    This tool automatically fetches all pages of highlights. For large libraries,
-    this may take time and return thousands of results.
+    This tool automatically fetches multiple pages of highlights up to max_results.
+    For large libraries, use updated_after for incremental syncs.
 
     Args:
         updated_after: Export only highlights updated after this date (ISO 8601 format)
                       Example: "2025-11-01T00:00:00Z"
                       Tip: Use this for incremental syncs after initial full export
         include_deleted: Include deleted highlights in export
-        max_results: Optional limit on number of highlights to return (for testing)
-                    Defaults to None (unlimited). Set to reasonable number for large exports.
+        max_results: Maximum number of highlights to export (default: 5000)
+                    Set higher for larger exports, but be aware of rate limits
 
     Returns:
-        JSON string with ALL exported highlights
+        JSON string with exported highlights
 
     Examples:
-        - Full export: (no parameters)
-        - Incremental since Nov 1: updated_after="2025-11-01T00:00:00Z"
+        - Export recent highlights: max_results=1000
+        - Incremental since Nov 1: updated_after="2025-11-01T00:00:00Z", max_results=10000
         - Last week's changes: updated_after="2025-11-28T00:00:00Z"
 
-    Warning: Full exports from large libraries may take 30+ seconds and return 10,000+ highlights
+    Note: Large exports may take time due to rate limiting delays between API calls
     """
     try:
-        # Export already fetches all pages internally
+        # Export fetches pages up to max_results with rate limiting
         highlights = await client.export_highlights(
             updated_after=updated_after,
-            include_deleted=include_deleted
+            include_deleted=include_deleted,
+            max_limit=max_results
         )
 
-        # Apply max_results limit if specified
-        if max_results:
-            highlights = highlights[:max_results]
-            result_msg = f"(limited to first {max_results})"
-        else:
-            result_msg = "(all highlights)"
+        result_msg = f"(limited to {max_results})" if max_results else "(all highlights)"
 
         # Optimize response - include more useful fields
         optimized = [
