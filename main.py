@@ -1,6 +1,8 @@
 """FastMCP Server for Readwise Reader + Highlights Integration"""
 
 import os
+import json
+import traceback
 from typing import Optional, List, Dict, Any
 from fastmcp import FastMCP
 from readwise_client import ReadwiseClient
@@ -29,6 +31,66 @@ if not MCP_API_KEY:
 
 # Initialize Readwise client
 client = ReadwiseClient(READWISE_TOKEN)
+
+# Response size limit (100KB)
+MAX_RESPONSE_SIZE = 100 * 1024
+
+
+def format_json_response(data: Dict[str, Any], max_size: int = MAX_RESPONSE_SIZE) -> str:
+    """
+    Format response data as JSON string with size limits.
+    
+    Args:
+        data: Dictionary to serialize
+        max_size: Maximum response size in bytes (default: 100KB)
+    
+    Returns:
+        JSON string, truncated if necessary
+    """
+    try:
+        json_str = json.dumps(data, ensure_ascii=False)
+        json_bytes = json_str.encode('utf-8')
+        
+        # Truncate if too large
+        if len(json_bytes) > max_size:
+            # Try to truncate the data array if it exists
+            if 'results' in data and isinstance(data['results'], list):
+                # Calculate how many items we can fit
+                base_data = {k: v for k, v in data.items() if k != 'results'}
+                base_json = json.dumps(base_data, ensure_ascii=False).encode('utf-8')
+                available_size = max_size - len(base_json) - 200  # Reserve space for JSON structure and truncation metadata
+                
+                if available_size > 0:
+                    # Binary search for optimal truncation
+                    items = data['results']
+                    low, high = 0, len(items)
+                    while low < high:
+                        mid = (low + high + 1) // 2
+                        test_data = {**base_data, 'results': items[:mid]}
+                        test_json = json.dumps(test_data, ensure_ascii=False).encode('utf-8')
+                        if len(test_json) <= available_size:
+                            low = mid
+                        else:
+                            high = mid - 1
+                    
+                    if low < len(items):
+                        data['results'] = items[:low]
+                        data['truncated'] = True
+                        data['total_count'] = len(items)
+                        json_str = json.dumps(data, ensure_ascii=False)
+            else:
+                # No results array to truncate, return error message
+                json_str = json.dumps({"error": "Response too large", "truncated": True, "message": "Response exceeds maximum size limit"})
+        
+        return json_str
+    except Exception as e:
+        logger.error(f"Error formatting JSON response: {e}")
+        logger.error(traceback.format_exc())
+        # Fallback to simple error response
+        try:
+            return json.dumps({"error": str(e), "message": "Failed to format response"})
+        except:
+            return '{"error": "Failed to format response"}'
 
 
 # ==================== Custom Authentication ====================
@@ -67,10 +129,15 @@ async def readwise_save_document(
             kwargs["category"] = category
 
         result = await client.save_document(url, **kwargs)
-        return f"Document saved successfully: {result}"
+        return format_json_response({
+            "success": True,
+            "message": "Document saved successfully",
+            "result": result
+        })
     except Exception as e:
         logger.error(f"Error saving document: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to save document"})
 
 
 @mcp.tool()
@@ -113,6 +180,12 @@ async def readwise_list_documents(
         - Incremental sync: fetch_all=True, updated_after="2025-11-28T00:00:00Z"
     """
     try:
+        # Parameter validation
+        if max_limit is not None and max_limit <= 0:
+            return format_json_response({"error": "max_limit must be a positive integer"})
+        if limit is not None and limit <= 0:
+            return format_json_response({"error": "limit must be a positive integer"})
+        
         # Fetch documents from API
         effective_limit = None if fetch_all else limit
         documents = await client.list_documents(
@@ -147,7 +220,7 @@ async def readwise_list_documents(
                 if "content" in doc and len(doc["content"]) > content_max_length:
                     doc["content"] = doc["content"][:content_max_length] + "..."
 
-        # Build descriptive result message
+        # Build response
         filters_applied = []
         if location:
             filters_applied.append(f"location={location}")
@@ -160,12 +233,16 @@ async def readwise_list_documents(
         if updated_after:
             filters_applied.append(f"updated after {updated_after}")
 
-        filter_desc = f" (filtered by: {', '.join(filters_applied)})" if filters_applied else ""
-
-        return f"Found {len(documents)} documents{filter_desc}: {documents}"
+        return format_json_response({
+            "count": len(documents),
+            "results": documents,
+            "filters_applied": filters_applied,
+            "fetch_mode": "all" if fetch_all else "paginated"
+        })
     except Exception as e:
         logger.error(f"Error listing documents: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to list documents"})
 
 
 @mcp.tool()
@@ -205,10 +282,16 @@ async def readwise_update_document(
             updates["tags"] = tags
 
         result = await client.update_document(document_id, updates)
-        return f"Document updated successfully: {result}"
+        return format_json_response({
+            "success": True,
+            "message": "Document updated successfully",
+            "document_id": document_id,
+            "result": result
+        })
     except Exception as e:
         logger.error(f"Error updating document: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to update document"})
 
 
 @mcp.tool()
@@ -224,10 +307,15 @@ async def readwise_delete_document(document_id: str) -> str:
     """
     try:
         await client.delete_document(document_id)
-        return f"Document {document_id} deleted successfully"
+        return format_json_response({
+            "success": True,
+            "message": f"Document {document_id} deleted successfully",
+            "document_id": document_id
+        })
     except Exception as e:
         logger.error(f"Error deleting document: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to delete document"})
 
 
 @mcp.tool()
@@ -240,10 +328,15 @@ async def readwise_list_tags() -> str:
     """
     try:
         tags = await client.list_tags()
-        return f"Found {len(tags)} tags: {tags}"
+        return format_json_response({
+            "count": len(tags),
+            "results": tags,
+            "type": "tags"
+        })
     except Exception as e:
         logger.error(f"Error listing tags: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to list tags"})
 
 
 # ==================== HIGHLIGHTS TOOLS (7) ====================
@@ -279,6 +372,14 @@ async def readwise_list_highlights(
         - Get highlights from last week: highlighted_at__gt="2025-11-01T00:00:00Z"
     """
     try:
+        # Parameter validation
+        if max_limit is not None and max_limit <= 0:
+            return format_json_response({"error": "max_limit must be a positive integer"})
+        if page_size <= 0 or page_size > 1000:
+            return format_json_response({"error": "page_size must be between 1 and 1000"})
+        if page <= 0:
+            return format_json_response({"error": "page must be a positive integer"})
+        
         filters = {}
         if highlighted_at__gt:
             filters["highlighted_at__gt"] = highlighted_at__gt
@@ -308,11 +409,16 @@ async def readwise_list_highlights(
         ]
 
         total_count = result.get("count", len(optimized))
-        fetch_mode = "all pages" if fetch_all else f"page {page}"
-        return f"Found {total_count} highlights ({fetch_mode}): {optimized}"
+        return format_json_response({
+            "count": total_count,
+            "results": optimized,
+            "fetch_mode": "all pages" if fetch_all else f"page {page}",
+            "book_id": book_id
+        })
     except Exception as e:
         logger.error(f"Error listing highlights: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to list highlights"})
 
 
 @mcp.tool()
@@ -339,10 +445,15 @@ async def readwise_get_daily_review() -> str:
             for h in highlights
         ]
 
-        return f"Daily review ({len(optimized)} highlights): {optimized}"
+        return format_json_response({
+            "count": len(optimized),
+            "results": optimized,
+            "type": "daily_review"
+        })
     except Exception as e:
         logger.error(f"Error getting daily review: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to get daily review"})
 
 
 @mcp.tool()
@@ -371,8 +482,18 @@ async def readwise_search_highlights(
         - Search first page: query="python", page_size=50
     """
     try:
+        # Parameter validation
+        if not query or not query.strip():
+            return format_json_response({"error": "query cannot be empty"})
+        if max_limit is not None and max_limit <= 0:
+            return format_json_response({"error": "max_limit must be a positive integer"})
+        if page_size <= 0 or page_size > 1000:
+            return format_json_response({"error": "page_size must be between 1 and 1000"})
+        if page <= 0:
+            return format_json_response({"error": "page must be a positive integer"})
+        
         result = await client.search_highlights(
-            query=query,
+            query=query.strip(),
             page_size=page_size,
             page=page,
             fetch_all=fetch_all,
@@ -393,11 +514,16 @@ async def readwise_search_highlights(
         ]
 
         total_count = result.get("count", len(optimized))
-        fetch_mode = "all matches" if fetch_all else f"page {page}"
-        return f"Found {total_count} matching highlights ({fetch_mode}): {optimized}"
+        return format_json_response({
+            "count": total_count,
+            "results": optimized,
+            "query": query.strip(),
+            "fetch_mode": "all matches" if fetch_all else f"page {page}"
+        })
     except Exception as e:
         logger.error(f"Error searching highlights: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to search highlights"})
 
 
 @mcp.tool()
@@ -429,6 +555,14 @@ async def readwise_list_books(
         - Get books with recent highlights: last_highlight_at__gt="2025-11-01T00:00:00Z"
     """
     try:
+        # Parameter validation
+        if max_limit is not None and max_limit <= 0:
+            return format_json_response({"error": "max_limit must be a positive integer"})
+        if page_size <= 0 or page_size > 1000:
+            return format_json_response({"error": "page_size must be between 1 and 1000"})
+        if page <= 0:
+            return format_json_response({"error": "page must be a positive integer"})
+        
         filters = {}
         if last_highlight_at__gt:
             filters["last_highlight_at__gt"] = last_highlight_at__gt
@@ -456,11 +590,16 @@ async def readwise_list_books(
         ]
 
         total_count = result.get("count", len(optimized))
-        fetch_mode = "all pages" if fetch_all else f"page {page}"
-        return f"Found {total_count} books ({fetch_mode}): {optimized}"
+        return format_json_response({
+            "count": total_count,
+            "results": optimized,
+            "category": category,
+            "fetch_mode": "all pages" if fetch_all else f"page {page}"
+        })
     except Exception as e:
         logger.error(f"Error listing books: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to list books"})
 
 
 @mcp.tool()
@@ -479,6 +618,12 @@ async def readwise_get_book_highlights(book_id: int, max_limit: Optional[int] = 
         - Get highlights from book: book_id=123456, max_limit=1000
     """
     try:
+        # Parameter validation
+        if book_id <= 0:
+            return format_json_response({"error": "book_id must be a positive integer"})
+        if max_limit is not None and max_limit <= 0:
+            return format_json_response({"error": "max_limit must be a positive integer"})
+        
         # This automatically fetches pages up to max_limit
         result = await client.get_book_highlights(book_id, max_limit=max_limit)
 
@@ -495,10 +640,16 @@ async def readwise_get_book_highlights(book_id: int, max_limit: Optional[int] = 
         ]
 
         total_count = result.get("count", len(optimized))
-        return f"Found {total_count} highlights for book {book_id} (all pages): {optimized}"
+        return format_json_response({
+            "count": total_count,
+            "results": optimized,
+            "book_id": book_id,
+            "fetch_mode": "all pages"
+        })
     except Exception as e:
         logger.error(f"Error getting book highlights: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to get book highlights"})
 
 
 @mcp.tool()
@@ -532,14 +683,16 @@ async def readwise_export_highlights(
     Note: Large exports may take time due to rate limiting delays between API calls
     """
     try:
+        # Parameter validation
+        if max_results is not None and max_results <= 0:
+            return format_json_response({"error": "max_results must be a positive integer"})
+        
         # Export fetches pages up to max_results with rate limiting
         highlights = await client.export_highlights(
             updated_after=updated_after,
             include_deleted=include_deleted,
             max_limit=max_results
         )
-
-        result_msg = f"(limited to {max_results})" if max_results else "(all highlights)"
 
         # Optimize response - include more useful fields
         optimized = [
@@ -556,10 +709,17 @@ async def readwise_export_highlights(
             for h in highlights
         ]
 
-        return f"Exported {len(optimized)} highlights {result_msg}: {optimized}"
+        return format_json_response({
+            "count": len(optimized),
+            "results": optimized,
+            "updated_after": updated_after,
+            "include_deleted": include_deleted,
+            "max_results": max_results
+        })
     except Exception as e:
         logger.error(f"Error exporting highlights: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to export highlights"})
 
 
 @mcp.tool()
@@ -599,10 +759,15 @@ async def readwise_create_highlight(
             highlight_data["highlighted_at"] = highlighted_at
 
         result = await client.create_highlight([highlight_data])
-        return f"Highlight created successfully: {result}"
+        return format_json_response({
+            "success": True,
+            "message": "Highlight created successfully",
+            "result": result
+        })
     except Exception as e:
         logger.error(f"Error creating highlight: {e}")
-        return f"Error: {str(e)}"
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to create highlight"})
 
 
 # ==================== Server Entry Point ====================
